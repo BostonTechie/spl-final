@@ -105,6 +105,14 @@ model History_price_SPS {
   Volume    Decimal?  @default(0) @db.Decimal(65, 6)
 }
 
+model History_price_Voucher {
+  id         Int       @id @unique @default(autoincrement())
+  Asset      String?   @default("VOUCHER")
+  Date       DateTime?
+  price_hive Decimal?  @default(0) @db.Decimal(65, 6)
+  price_usd  Decimal?  @default(0) @db.Decimal(65, 6)
+}
+
 enum DLedger {
   Asset
   Liability
