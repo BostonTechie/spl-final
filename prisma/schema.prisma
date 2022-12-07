@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SPL {
+  id                   Int            @id @unique @default(autoincrement())
+  Token                String?
+  Type                 String?
+  From                 String?        @map("From/To")
+  Amount               Decimal?       @db.Decimal(65, 6)
+  Balance              Decimal?       @db.Decimal(65, 6)
+  Created_Date         DateTime?      @map("Created Date")
+  Account              String?
+  Index                Int?
+  Price                Decimal?       @db.Decimal(65, 6)
+  inUSD                Decimal?       @db.Decimal(65, 6)
+  Buy_or_Sell          String?        @map("Buy/Sell")
+  Internal_or_External String?        @map("Internal/External")
+  BalanceRX            Decimal?       @db.Decimal(65, 6)
+  AccountingJE         AccountingJE[]
+  Fifo                 Fifo[]
+}
+
+model Fifo {
+  id             Int      @id @unique @default(autoincrement())
+  Realized       Decimal? @default(0) @db.Decimal(65, 6)
+  Buy_or_Sell    String?
+  Fifo           Json?
+  LevelFifo      Json?
+  MultiLevelFifo Json?
+  sPLId          Int?
+  SPL            SPL?     @relation(fields: [sPLId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Listing_Account {
+  id      Int     @id @unique @default(autoincrement())
+  Account String?
+}
+
+model Listing_Token {
+  id    Int     @id @unique @default(autoincrement())
+  Token String?
+}
+
+model AccountingJE {
+  id           Int       @id @unique @default(autoincrement())
+  Entity       String?
+  Wallet       String?
+  Counterparty String?
+  Asset        String?
+  Proceed_Date DateTime?
+  Ledger_Type1 String?
+  Ledger_Type2 String?
+  Ledger_Name  String?
+  Debit        Decimal?  @default(0) @db.Decimal(65, 6)
+  Credit       Decimal?  @default(0) @db.Decimal(65, 6)
+  CryptoDBid   Int
+  FifoDBid     Int
+  Duration     String?
+  Notes        String?
+  SPL          SPL       @relation(fields: [CryptoDBid], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Ledger {
+  id               Int      @id @unique @default(autoincrement())
+  Transaction_Type String?  @map("Transaction Type")
+  Dledger          DLedger?
+  DLedger_SType    String?  @default("Liquid")
+  Cledger          CLedger?
+  CLedger_SType    String?  @default("Deferred Revenue")
+  Real             Boolean? @default(false)
+  Sale             Sale?
+  Notes            String?
+}
+
+model History_price_DEC {
+  id        Int       @id @unique @default(autoincrement())
+  Asset     String?
+  Date      DateTime?
+  Open      Decimal?  @default(0) @db.Decimal(65, 6)
+  High      Decimal?  @default(0) @db.Decimal(65, 6)
+  Low       Decimal?  @default(0) @db.Decimal(65, 6)
+  Close     Decimal?  @default(0) @db.Decimal(65, 6)
+  Adj_Close Decimal?  @default(0) @db.Decimal(65, 6)
+  Volume    Decimal?  @default(0) @db.Decimal(65, 6)
+}
+
+model History_price_SPS {
+  id        Int       @id @unique @default(autoincrement())
+  Asset     String?
+  Date      DateTime?
+  Open      Decimal?  @default(0) @db.Decimal(65, 6)
+  High      Decimal?  @default(0) @db.Decimal(65, 6)
+  Low       Decimal?  @default(0) @db.Decimal(65, 6)
+  Close     Decimal?  @default(0) @db.Decimal(65, 6)
+  Adj_Close Decimal?  @default(0) @db.Decimal(65, 6)
+  Volume    Decimal?  @default(0) @db.Decimal(65, 6)
+}
+
+enum DLedger {
+  Asset
+  Liability
+  Equity
+  Revenue
+  Expense
+}
+
+enum CLedger {
+  Asset
+  Liability
+  Equity
+  Revenue
+  Expense
+}
+
+enum Sale {
+  Buy
+  Sale
+}
