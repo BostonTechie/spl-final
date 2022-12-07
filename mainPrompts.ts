@@ -25,18 +25,8 @@ export function mainPrompt() {
 
   prompt.run().then(function (answer) {
     if (answer === 0) {
-      setupPrompt().catch((e) => {
-        console.error(e);
-        process.exit(1);
-      });
       answer = null;
-    }
-    if (answer === 1) {
-      answer = null;
-    }
-    if (answer === 2) {
-    }
-    if (answer === 3) {
+      setupPrompt();
     }
   });
 }

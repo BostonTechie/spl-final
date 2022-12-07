@@ -11,13 +11,13 @@ export function setupPrompt() {
 
   console.log("Please enter one of the following options");
   console.log(
-    "0...Setup(generate) tables for account/token, lookup price histories"
+    "0...Setup distinct tables for account/token, also lookup price histories"
   );
-  console.log("1...lookup and generate price histories");
-  console.log("2...Lookup DEC prices");
-  console.log("3...Lookup SPS prices");
-  console.log("4...Update the Buy/Sell Column");
-  console.log("5...Lookup Credit prices");
+  console.log("1...");
+  console.log("2...");
+  console.log("3...");
+  console.log("4...");
+  console.log("5...");
   console.log("9...back");
 
   prompt.run().then(function (answer) {
@@ -43,12 +43,14 @@ export function setupPrompt() {
         console.error(e);
         process.exit(1);
       });
-    }
-
-    if (answer === 2) {
+      lookupVoucherPriceHistory().catch((e) => {
+        console.error(e);
+        process.exit(1);
+      });
     }
 
     if (answer === 9) {
+      answer = null;
       mainPrompt();
     }
   });
@@ -196,7 +198,7 @@ async function lookupDECPriceHistory() {
       updateSPLwithFindPriceCredit who's purpose is to find all 
       the data that will have price data that I can find and 
       update the data line with the closing price for that day 
-      */
+    */
 
     await prisma.sPL.update({
       where: {
@@ -423,4 +425,162 @@ async function lookupSPSPriceHistory() {
     });
   }
   console.log("👍👍👍 SPS lookup and USD calc complete");
+}
+
+async function lookupVoucherPriceHistory() {
+  // varibles for use in this function
+  let myAsset = "VOUCHER";
+  let firstPrice = new Date(2021, 10, 18);
+
+  console.log(`🌟🌟🌟 starting lookup of ${myAsset} `);
+  /*
+      this function place the price of a token into the appropriate line 
+      for a given Crypto transation on the SPL table,
+      it looks up the Price from the
+      "history_price_XXX" tables.
+    */
+
+  /*
+     I have "crypto" data that begins before my historical data
+      For Voucher token i declare a fixed number later, based on the earilest date
+      that I have data for (from REAZ) (10/18/2021)
+   */
+
+  /*
+     i update the prices for all tranactions
+     that I have no data for below, 
+     before this date (approx) in game currency
+     was not on the blockchain and had 
+     no value
+    */
+
+  await prisma.sPL.updateMany({
+    where: {
+      Token: myAsset,
+      Created_Date: {
+        lte: firstPrice,
+      },
+    },
+    data: {
+      Price: 0.0,
+    },
+  });
+
+  //this code section updates the prices for any date after the first price date.. Meaning A price exist and can be found online, before (8/10/2020) no data seems to exist
+  const updateSPLwithFindPriceCredit = await prisma.sPL.findMany({
+    where: {
+      Token: myAsset,
+      Created_Date: {
+        gt: firstPrice,
+      },
+    },
+    select: {
+      id: true,
+      Created_Date: true,
+    },
+    //if you want to run a smaller sample uncomment next line
+    //take: 1,
+  });
+
+  for (let element of updateSPLwithFindPriceCredit) {
+    let strmonth = "";
+    let strDayOfMonth = "";
+
+    /*
+       this if controls logic for findinf prices of the DEC
+        token that I have found in yahoo finance, note all data is after
+        (10/18/2021)
+        
+      */
+
+    let elementDate = element.Created_Date;
+    let dayofMonth = elementDate.getUTCDate();
+    let month = elementDate.getUTCMonth();
+    let year = elementDate.getUTCFullYear();
+    month++;
+
+    //handle the use case that day 1 - 9, needs to return 01 - 09
+    if (month <= 9) {
+      strmonth = "0" + month.toString();
+    }
+
+    if (month > 9) {
+      strmonth = month.toString();
+    }
+
+    if (dayofMonth <= 9) {
+      strDayOfMonth = "0" + dayofMonth.toString();
+    }
+
+    if (dayofMonth > 9) {
+      strDayOfMonth = dayofMonth.toString();
+    }
+
+    let dateStr =
+      year + "-" + strmonth + "-" + strDayOfMonth + "T00:00:00+00:00";
+
+    const lookupPricebyDate = await prisma.history_price_Voucher.findMany({
+      where: {
+        Asset: myAsset,
+        Date: dateStr,
+      },
+      select: {
+        id: true,
+        Date: true,
+        price_usd: true,
+      },
+    });
+
+    // console.log(element, "datestr..", dateStr, "..day o m..", dayofMonth);
+
+    /*
+      loop through all the elements in this array
+      updateSPLwithFindPriceCredit who's purpose is to find all 
+      the data that will have price data that I can find and 
+      update the data line with the closing price for that day 
+    */
+
+    await prisma.sPL.update({
+      where: {
+        id: element.id,
+      },
+      data: {
+        Price: lookupPricebyDate[0].price_usd,
+      },
+    });
+  }
+
+  /*
+       Calculate the USD equivalent price of the token,
+       must be run after calcDeclookup, calcSPSlookup.
+      */
+  const calcUSD = await prisma.sPL.findMany({
+    where: {
+      Token: myAsset,
+    },
+    select: {
+      id: true,
+      Amount: true,
+      Price: true,
+    },
+  });
+
+  let usdOfElement = 0.0;
+  for (let element of calcUSD) {
+    usdOfElement = Number(element.Amount) * Number(element.Price);
+    await prisma.sPL.update({
+      where: {
+        id: element.id,
+      },
+      data: {
+        inUSD: usdOfElement,
+      },
+    });
+
+    if (element.id % 10000 === 0) {
+      console.log("processed through ", element.id);
+    }
+  }
+
+  console.log(`👍👍👍 ${myAsset} lookup and USD complete`);
 }
