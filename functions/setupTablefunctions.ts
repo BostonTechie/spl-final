@@ -13,7 +13,7 @@ export function setupPrompt() {
   console.log(
     "0...Setup distinct tables for account/token, also lookup price histories"
   );
-  console.log("1...");
+  console.log("1...internal/ external & buy / sell");
   console.log("2...");
   console.log("3...");
   console.log("4...");
@@ -31,7 +31,11 @@ export function setupPrompt() {
         console.error(e);
         process.exit(1);
       });
-      lookupDECPriceHistory().catch((e) => {
+      lookupOldDECPriceHistory().catch((e) => {
+        console.error(e);
+        process.exit(1);
+      });
+      lookupNewDECPriceHistory().catch((e) => {
         console.error(e);
         process.exit(1);
       });
@@ -47,6 +51,12 @@ export function setupPrompt() {
         console.error(e);
         process.exit(1);
       });
+    }
+
+    if (answer === 1) {
+      answer = null;
+
+      updateBuySellColumn();
     }
 
     if (answer === 9) {
@@ -88,9 +98,10 @@ async function generateListingAccount() {
   });
 }
 
-async function lookupDECPriceHistory() {
-  console.log("🌟🌟🌟 starting lookup of DEC prices");
+async function lookupOldDECPriceHistory() {
+  console.log("do i do anything?");
   /*
+
       this function place the price of a token into the appropriate line 
       for a given Crypto transation on the SPL table,
       it looks up the Price from the
@@ -104,6 +115,7 @@ async function lookupDECPriceHistory() {
    */
 
   let firstDecPrice = new Date(2020, 7, 10);
+  console.log("🌟🌟🌟 starting lookup of older DEC prices", firstDecPrice);
 
   /*
      i update the prices for all tranactions
@@ -125,124 +137,7 @@ async function lookupDECPriceHistory() {
     },
   });
 
-  //this code section updates the prices for any date after the first price date.. Meaning A price exist and can be found online, before (8/10/2020) no data seems to exist
-  const updateSPLwithFindPriceCredit = await prisma.sPL.findMany({
-    where: {
-      Token: "DEC",
-      Created_Date: {
-        gt: firstDecPrice,
-      },
-    },
-    select: {
-      id: true,
-      Created_Date: true,
-    },
-    //if you want to run a smaller sample uncomment next line
-    //take: 1,
-  });
-
-  for (let element of updateSPLwithFindPriceCredit) {
-    let strmonth = "";
-    let strDayOfMonth = "";
-
-    /*
-       this if controls logic for findinf prices of the DEC
-        token that I have found in yahoo finance, note all data is after
-         (8/10/2020)
-          https://finance.yahoo.com/quote/DEC1-USD/history?period1=1594598400&period2=1666051200&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true
-  
-      */
-
-    let elementDate = element.Created_Date;
-    let dayofMonth = elementDate.getUTCDate();
-    let month = elementDate.getUTCMonth();
-    let year = elementDate.getUTCFullYear();
-    month++;
-
-    //handle the use case that day 1 - 9, needs to return 01 - 09
-    if (month <= 9) {
-      strmonth = "0" + month.toString();
-    }
-
-    if (month > 9) {
-      strmonth = month.toString();
-    }
-
-    if (dayofMonth <= 9) {
-      strDayOfMonth = "0" + dayofMonth.toString();
-    }
-
-    if (dayofMonth > 9) {
-      strDayOfMonth = dayofMonth.toString();
-    }
-
-    let dateStr =
-      year + "-" + strmonth + "-" + strDayOfMonth + "T00:00:00+00:00";
-
-    const lookupPricebyDate = await prisma.history_price_DEC.findMany({
-      where: {
-        Asset: "DEC",
-        Date: dateStr,
-      },
-      select: {
-        id: true,
-        Date: true,
-        Close: true,
-      },
-    });
-
-    // console.log(element, "datestr..", dateStr, "..day o m..", dayofMonth);
-
-    /*
-      loop through all the elements in this array
-      updateSPLwithFindPriceCredit who's purpose is to find all 
-      the data that will have price data that I can find and 
-      update the data line with the closing price for that day 
-    */
-
-    await prisma.sPL.update({
-      where: {
-        id: element.id,
-      },
-      data: {
-        Price: lookupPricebyDate[0].Close,
-      },
-    });
-  }
-
-  /*
-       Calculate the USD equivalent price of the token,
-       must be run after calcDeclookup, calcSPSlookup.
-      */
-  const calcUSD = await prisma.sPL.findMany({
-    where: {
-      Token: "DEC",
-    },
-    select: {
-      id: true,
-      Amount: true,
-      Price: true,
-    },
-  });
-
-  let usdOfElement = 0.0;
-  for (let element of calcUSD) {
-    usdOfElement = Number(element.Amount) * Number(element.Price);
-    await prisma.sPL.update({
-      where: {
-        id: element.id,
-      },
-      data: {
-        inUSD: usdOfElement,
-      },
-    });
-
-    if (element.id % 10000 === 0) {
-      console.log("processed through ", element.id);
-    }
-  }
-
-  console.log("👍👍👍 DEC lookup and USD complete");
+  console.log("👍👍👍lookup of older DEC prices complete");
 }
 
 async function lookupCreditsPriceHistory() {
@@ -430,9 +325,11 @@ async function lookupSPSPriceHistory() {
 async function lookupVoucherPriceHistory() {
   // varibles for use in this function
   let myAsset = "VOUCHER";
-  let firstPrice = new Date(2021, 10, 18);
 
-  console.log(`🌟🌟🌟 starting lookup of ${myAsset} `);
+  //first date is 10, java script starts at 0 so 9 instead
+  let firstPrice = new Date(2021, 9, 18);
+
+  console.log(`🌟🌟🌟 starting lookup of ${myAsset} at ${firstPrice}`);
   /*
       this function place the price of a token into the appropriate line 
       for a given Crypto transation on the SPL table,
@@ -583,4 +480,227 @@ async function lookupVoucherPriceHistory() {
   }
 
   console.log(`👍👍👍 ${myAsset} lookup and USD complete`);
+}
+
+async function lookupNewDECPriceHistory() {
+  console.log("🌟🌟🌟 starting lookup of DEC prices");
+  /*
+    this function place the price of a token into the appropriate line 
+    for a given Crypto transation on the SPL table,
+    it looks up the Price from the
+    "history_price_XXX" tables.
+  */
+
+  /*
+   I have "crypto" data that begins before my historical data
+    For DEC token i declare a fixed number later, based on the earilest date
+    that I have data for (from yahoo) (8/10/2020)
+ */
+
+  let firstDecPrice = new Date(2020, 7, 10);
+
+  //this code section updates the prices for any date after the first price date.. Meaning A price exist and can be found online, before (8/10/2020) no data seems to exist
+  const updateSPLwithFindPriceDEC = await prisma.sPL.findMany({
+    orderBy: {
+      id: "asc",
+    },
+    where: {
+      Token: "DEC",
+      Created_Date: {
+        gt: firstDecPrice,
+      },
+    },
+    select: {
+      id: true,
+      Created_Date: true,
+    },
+    //if you want to run a smaller sample uncomment next line
+    //take: 1,
+  });
+
+  for (let element of updateSPLwithFindPriceDEC) {
+    let strmonth = "";
+    let strDayOfMonth = "";
+
+    /*
+     this if controls logic for findinf prices of the DEC
+      token that I have found in yahoo finance, note all data is after
+       (8/10/2020)
+        https://finance.yahoo.com/quote/DEC1-USD/history?period1=1594598400&period2=1666051200&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true
+
+    */
+
+    let elementDate = element.Created_Date;
+    let dayofMonth = elementDate.getUTCDate();
+    let month = elementDate.getUTCMonth();
+    let year = elementDate.getUTCFullYear();
+    month++;
+
+    //handle the use case that day 1 - 9, needs to return 01 - 09
+    if (month <= 9) {
+      strmonth = "0" + month.toString();
+    }
+
+    if (month > 9) {
+      strmonth = month.toString();
+    }
+
+    if (dayofMonth <= 9) {
+      strDayOfMonth = "0" + dayofMonth.toString();
+    }
+
+    if (dayofMonth > 9) {
+      strDayOfMonth = dayofMonth.toString();
+    }
+
+    let dateStr =
+      year + "-" + strmonth + "-" + strDayOfMonth + "T00:00:00+00:00";
+
+    const lookupPricebyDate = await prisma.history_price_DEC.findMany({
+      where: {
+        Asset: "DEC",
+        Date: dateStr,
+      },
+      select: {
+        id: true,
+        Date: true,
+        Close: true,
+      },
+    });
+    if (element.id % 1000 === 0) {
+      console.log("processed through #Dec Transactions ", element.id);
+    }
+
+    //   /*
+    //   loop through all the elements in this array
+    //   updateSPLwithFindPriceCredit who's purpose is to find all
+    //   the data that will have price data that I can find and
+    //   update the data line with the closing price for that day
+    //   */
+
+    await prisma.sPL.update({
+      where: {
+        id: element.id,
+      },
+      data: {
+        Price: lookupPricebyDate[0].Close,
+      },
+    });
+  }
+  calcDecUSD();
+}
+
+async function calcDecUSD() {
+  console.log("calc DEC usd started");
+  /*
+     Calculate the USD equivalent price of the token,
+     must be run after calcDeclookup, calcSPSlookup.
+    */
+  const calcUSD = await prisma.sPL.findMany({
+    where: {
+      Token: "DEC",
+    },
+    select: {
+      id: true,
+      Amount: true,
+      Price: true,
+    },
+  });
+
+  let usdOfElement = 0.0;
+  for (let element of calcUSD) {
+    if (element.id % 1000 === 0) {
+      console.log("processed through #calc USD Dec Transactions ", element.id);
+    }
+    usdOfElement = Number(element.Amount) * Number(element.Price);
+    await prisma.sPL.update({
+      where: {
+        id: element.id,
+      },
+      data: {
+        inUSD: usdOfElement,
+      },
+    });
+
+    if (element.id % 1000 === 0) {
+      console.log("processed through ", element.id);
+    }
+  }
+  console.log("Calc DEC complete");
+}
+
+async function updateBuySellColumn() {
+  //updates the buy or sell column in the SPL database for FIFO calc purposes in === Buy out === Sell
+  console.log("🌟🌟🌟 starting buy/sell script");
+
+  await prisma.sPL.updateMany({
+    where: {
+      Amount: {
+        gt: 0,
+      },
+    },
+    data: {
+      Buy_or_Sell: "Buy",
+    },
+  });
+
+  await prisma.sPL.updateMany({
+    where: {
+      Amount: {
+        lte: 0,
+      },
+    },
+    data: {
+      Buy_or_Sell: "Sell",
+    },
+  });
+
+  console.log("👍👍👍 buy/sell column complete");
+}
+
+async function internalExternalColumn() {
+  /*
+    generate table that lists all of the distinct 
+    accounts and put into the "Listing_Account" 
+    table in the database, which is used to determine what
+    is internal vs. external...see columnFunctions.ts
+  */
+
+  const findInternalTransactions = await prisma.listing_Account.findMany({
+    select: {
+      Account: true,
+    },
+  });
+
+  let myArrayforInternal = [];
+
+  findInternalTransactions.forEach((element) => {
+    myArrayforInternal.push(element.Account);
+  });
+
+  await prisma.sPL.updateMany({
+    where: {
+      From: {
+        in: myArrayforInternal,
+      },
+    },
+    data: {
+      Internal_or_External: "Internal",
+    },
+  });
+
+  await prisma.sPL.updateMany({
+    where: {
+      NOT: {
+        From: {
+          in: myArrayforInternal,
+        },
+      },
+    },
+    data: {
+      Internal_or_External: "External",
+    },
+  });
+
+  console.log("👍👍👍 internal/external column complete");
 }
